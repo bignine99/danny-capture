@@ -1,0 +1,35 @@
+# ── 시크릿 (CLAUDE.md 보안 규칙 — 절대 커밋 금지) ──
+.env*
+.agent/
+*.pem
+*credentials*.json
+
+# ── 빌드 산출물 (Release 로 배포, 저장소에는 넣지 않음) ──
+build/
+dist/
+Output/
+nuitka_build/
+*.spec.bak
+
+# ── Python ──
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ── 작업 부산물 ──
+scratch/diag_shots*/
+scratch/*.log
+scratch/*.png
+.initial_setting/
+
+# ── OS / 에디터 ──
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+
+# 구버전 설치본 보관 폴더 (바이너리)
+installer/
+scratch/*.err
