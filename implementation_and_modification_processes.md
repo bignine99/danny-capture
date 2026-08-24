@@ -233,3 +233,57 @@
 2. **installer.iss 에 실행 중 구버전 종료 처리** — 이제 앱에 뮤텍스가 생겼으므로 `AppMutex=DannyCapture_SingleInstance` 지시자 활용 가능.
 3. 미착수 개선 후보(우선순위 순): 모자이크/블러(민감정보 가리기) · 캡처 이미지 화면 핀 고정 · OCR 텍스트 추출 · 트레이 「저장 폴더 열기」 · 편집기 fit-to-window.
 4. spec 의 `datas=[]` 라 `icon.ico` 가 exe 에 미내장 → onefile 실행 시 트레이 아이콘 폴백 문제(리뷰 지적, 미수정) — 재빌드 시 함께 처리.
+
+---
+
+## 9. Git 공유 및 v1.2.0 배포 (2026-08-24 야간 — 같은 날 추가 세션)
+
+「다른 사람과 공유하고 싶다. 지난번 zip 으로 받아 설치하려다 문제가 있었다」는 요청으로, 배포 체계를 GitHub 저장소 + Releases 구조로 구축.
+
+### 9.1 zip 공유가 실패했던 원인 진단
+* 소스 zip 은 실행 파일이 아니므로 받는 쪽에 Python + 의존 패키지 설치가 필요했음.
+* 설령 소스로 실행했더라도 §4.1 의 저장 경로 하드코딩(금일 오전 수정) 때문에 타 PC 에서는 저장이 실패하는 상태였음.
+* 결론: 소스는 git 으로, 일반 사용자는 GitHub Releases 의 `DannyCapture_Setup.exe` 로 받는 구조가 정답.
+
+### 9.2 빌드 전 정비 (§8 TODO 1·2·4 해소)
+* `requirements.txt` 정리 — 전 모듈 임포트 전수 조사로 `rembg`(대용량)·`pynput`(네이티브 단축키 전환으로 폐기) **미사용 확정 후 제거.** 잔여: PySide6·mss·Pillow·winotify·pywin32.
+* 깨진 `app.ico` 참조 3곳(`main.py`·`DannyCapture.spec`·`build.bat`) → `icon.ico` 로 정정.
+* 두 spec 의 `datas` 에 `icon.ico` 내장 → onefile 실행 시 트레이 아이콘 폴백 문제 해소(§5 리뷰 지적 잔여분).
+* `installer.iss` 에 `AppMutex=DannyCapture_SingleInstance` 추가 — 금일 구현한 뮤텍스와 연동되어, 설치 시 실행 중인 구버전을 감지·종료 안내.
+
+### 9.3 재빌드 및 스모크 테스트
+* `DannyCapture_Single.exe` 재빌드(PyInstaller 6.16, 68.4MB) — 금일 수정 전량 포함. 첫 배포 이후 처음으로 소스와 exe 가 일치하는 상태가 됨.
+* `DannyCapture_Setup.exe` 재패키징(Inno Setup 6, 70.4MB).
+* 스모크 테스트: 새 exe 실행 유지 확인. **뮤텍스 교차검증** — 2번째 인스턴스 실행 시 안내창을 띄우며 차단됨(프로세스 간 실증).
+
+### 9.4 Git 저장소 구축 및 배포
+
+* **오류현상**: 최초 `git add -A` 스테이징 목록에 `installer/DannyCapture_Setup.exe`(4월자 구버전 68MB 바이너리)와 `scratch/*.err` 로그가 포함됨.
+* **오류원인분석**: `.gitignore` 를 이름 규칙(`Output/`·`dist/`) 중심으로 짜서 **폴더 단위 보관물**(`installer/`)이 그물 밖이었음 — CLAUDE.md 2항이 경고한 「폴더 단위 산출물 누락」과 동일 유형.
+* **해결및개선방법**: `installer/`·`scratch/*.err` 규칙 추가 후 `git rm --cached` 로 스테이징 해제. `git check-ignore` 로 대상 5종(dist·Output·build·.initial_setting·diag_shots) 차단 실측 확인. **커밋 전 스테이징 목록을 눈으로 전수 확인하는 절차가 유효했음** — status 만 믿었다면 68MB 바이너리가 저장소에 들어갔음.
+
+* `.gitignore` 에 CLAUDE.md 필수 4종(`.env*`·`.agent/`·`*.pem`·`*credentials*.json`) 포함.
+* **시크릿 게이트 4종 전부 PASS** (패턴 grep 0건 · 스테이징 추가 라인 0건 · .env 추적 없음 · .env 이력 없음). `nginx_patch.conf` 는 내용 점검 결과 일반 프록시 설정만 있어 포함 유지.
+* 커밋 `bf08a44` (34개 파일: 소스·spec·installer.iss·문서·테스트 하네스) → GitHub **public 저장소 `bignine99/danny-capture`** 생성·푸시.
+* **Release v1.2.0** 생성, `DannyCapture_Setup.exe`(70,389,496 bytes) 자산 첨부를 API 로 재확인.
+* `README_KR.md` 전면 갱신 — 일반 사용자용 설치 절차(Releases 링크), zip 방식 경고, v1.2.0 변경 이력, 개발자용 빌드 절차.
+* 공유 링크: `https://github.com/bignine99/danny-capture/releases/latest`
+
+### 9.5 /99 재검증
+* 배포 직후 /99 호출로 게이트 4종 재실행 — 전부 통과, 추가 커밋할 변경 0건(로컬 = 원격 `bf08a44`).
+
+---
+
+## 10. TODO 상태 갱신 (§8 대비)
+
+| §8 항목 | 상태 |
+|---|---|
+| 1. exe·설치본 재빌드 + app.ico 정리 | **완료** (§9.2~9.3) |
+| 2. installer.iss 구버전 종료 처리(AppMutex) | **완료** (§9.2) |
+| 3. 미착수 개선 후보(모자이크/블러·핀 고정·OCR·트레이 폴더 열기·fit-to-window) | 잔여 |
+| 4. icon.ico exe 내장 | **완료** (§9.2) |
+
+### 신규 TODO
+1. ~~타 PC 설치 테스트~~ — **완료(2026-08-24)**: 사용자가 타 PC 에서 설치 정상·저장 폴더 정상을 직접 확인. v1.2.0 배포 검증 종료.
+2. 이후 버전 배포 절차(확립): 소스 수정 → `python -m PyInstaller --clean DannyCapture_Single.spec` → `ISCC.exe installer.iss` → `gh release create v1.x.x Output/DannyCapture_Setup.exe` (링크는 `releases/latest` 불변).
+3. §8-3 잔여 개선 후보는 우선순위 재논의 후 착수.
