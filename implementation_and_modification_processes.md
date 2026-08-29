@@ -287,3 +287,36 @@
 1. ~~타 PC 설치 테스트~~ — **완료(2026-08-24)**: 사용자가 타 PC 에서 설치 정상·저장 폴더 정상을 직접 확인. v1.2.0 배포 검증 종료.
 2. 이후 버전 배포 절차(확립): 소스 수정 → `python -m PyInstaller --clean DannyCapture_Single.spec` → `ISCC.exe installer.iss` → `gh release create v1.x.x Output/DannyCapture_Setup.exe` (링크는 `releases/latest` 불변).
 3. §8-3 잔여 개선 후보는 우선순위 재논의 후 착수.
+
+---
+
+## 11. v1.2.0 재빌드·재설치 (2026-08-29)
+
+### 11.1 착수 경위
+* 8/24 작업본이 있던 `C:\Users\cho\Desktop\Temp\02 program\260401\260420_capture_program` 폴더가 사라진 상태로 발견됨. 세션 로그에 삭제·이동 명령은 없었고, GitHub `bignine99/danny-capture` 에 v1.2.0 이 이미 푸시되어 있어 **소스 손실은 없음**.
+* 같은 경로로 clone 하여 복원(`v1.2.0-1-g3c58997`, 34개 파일). Y드라이브 원본(`Y:\02 program\...`)은 여전히 2026-06-09 버전이라 8/24 개선분이 없음.
+
+### 11.2 §8 TODO 재점검 — 3건은 이미 반영되어 있었음
+§8 은 v1.2.0 커밋 **이전** 시점에 작성된 목록이었다. 실제 소스 확인 결과:
+* TODO 1 (깨진 `app.ico` 참조) — `build.bat`·`DannyCapture.spec`·`main.py` 전부 `icon.ico` 로 이미 정리됨. 잔존 참조 0건.
+* TODO 4 (`datas=[]` 로 아이콘 미내장) — 두 spec 모두 `datas=[('icon.ico', '.')]` 로 반영됨. onefile 에서 `Path(__file__).parent` 가 `_MEIPASS` 를 가리키므로 `main.py`·`ui/tray.py` 의 아이콘 경로도 정상 해결됨.
+* TODO 2 (설치 시 구버전 종료) — `installer.iss` 에 `AppMutex=DannyCapture_SingleInstance` 이미 존재.
+* **금회 수정은 1건뿐** — `installer.iss` 의 `AppVersion=1.0.0`·`VersionInfoVersion=1.0.0.0` 이 릴리스 태그(v1.2.0)와 어긋나 있어 `1.2.0`·`1.2.0.0` 으로 정정.
+
+### 11.3 빌드·설치 절차
+1. 구버전 인스턴스 정리 — 설치 폴더의 **6/9 자 exe 가 4프로세스(2인스턴스) 실행 중**이어서 전역 단축키를 선점하고 있었음. 강제 종료 후 진행(구버전에는 뮤텍스가 없어 `AppMutex` 로는 감지되지 않음).
+2. `python scratch/test_improvements.py` → **37/37 PASS**
+3. `python -m PyInstaller --clean --noconfirm DannyCapture_Single.spec` → `dist/DannyCapture_Single.exe` (68,453,794 B)
+4. `ISCC.exe installer.iss` → `Output/DannyCapture_Setup.exe` (70,387,822 B)
+5. `DannyCapture_Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART` → 종료코드 0, `%LOCALAPPDATA%\DannyCapture` 갱신 완료
+
+### 11.4 검증 결과
+* 회귀 하네스 **37/37 PASS**
+* 동결 캡처 실측 `scratch/test_overlay_freeze.py` **3/3 PASS** — 오버레이 표시 중 픽셀 `(0,0,135)` 동결색 유지(라이브였다면 초록), 선택 영역 원본 밝기 `(0,0,255)`, 최종 크롭 `(0,0,255)` 일치.
+* 설치본 실행 유지 확인(PID 유지) 후 **뮤텍스 교차검증** — 2번째 실행은 안내창을 띄운 채 대기하다 창을 닫자 종료. 단일 인스턴스 차단이 설치본에서도 동작함을 확인.
+* [HUMAN CHECK] 실제 드롭다운 캡처·자르기·재캡처의 손 검증은 미실시(자동 테스트로 대체).
+
+### 11.5 남은 것
+* Y드라이브 원본(`Y:\02 program\260401\260420_capture_program`)이 6/9 버전에 머물러 있음. 네트워크 공유 소유권 문제로 `git` 이 `dubious ownership` 를 내며 거부하는 상태라, 동기화하려면 `safe.directory` 예외 등록이 선행되어야 함.
+* `installer.iss` 버전 정정분 미커밋.
+* §8 TODO 3(모자이크/블러·화면 핀 고정·OCR·저장 폴더 열기·fit-to-window) 미착수 유지.

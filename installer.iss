@@ -1,7 +1,7 @@
 [Setup]
 AppName=Danny Capture
-AppVersion=1.0.0
-VersionInfoVersion=1.0.0.0
+AppVersion=1.2.0
+VersionInfoVersion=1.2.0.0
 AppPublisher=Ninetynine Inc.
 AppPublisherURL=https://ninetynine99.co.kr
 AppSupportURL=https://ninetynine99.co.kr/contact
