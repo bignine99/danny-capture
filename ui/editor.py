@@ -1,9 +1,11 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QGraphicsView, QGraphicsScene, QApplication, QColorDialog, QInputDialog, QGraphicsTextItem, QGraphicsPathItem, QFrame, QLabel
-from PySide6.QtGui import QPixmap, QImage, QPainter, QPen, QColor, QPainterPath, QFont
-from PySide6.QtCore import Qt, QPointF, QRectF, QLineF, QEvent
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QGraphicsView, QGraphicsScene, QApplication, QColorDialog, QInputDialog, QGraphicsTextItem, QGraphicsPathItem, QGraphicsEllipseItem, QGraphicsSimpleTextItem, QFrame, QLabel, QMenu
+from PySide6.QtGui import QPixmap, QImage, QPainter, QPen, QColor, QPainterPath, QFont, qGray
+from PySide6.QtCore import Qt, QPointF, QRectF, QLineF, QEvent, QTimer
 from PIL import Image
 from PIL.ImageQt import ImageQt
 import math
+
+NUMBER_LABELS = "①②③④⑤"
 
 def apply_mica(hwnd):
     import ctypes
@@ -29,6 +31,8 @@ class DrawingScene(QGraphicsScene):
         self.undo_stack = []
         self.redo_stack = []
         self.on_crop = None  # set by EditorWindow
+        self.number = 1
+        self.on_number_placed = None  # set by EditorWindow
 
     def commit_item(self, item):
         if item:
@@ -87,7 +91,29 @@ class DrawingScene(QGraphicsScene):
                     self.commit_item(text_item)
                 self.drawing = False
 
+            elif self.mode == "number":
+                self.commit_item(self.add_number_item(self.last_point))
+                if self.on_number_placed:
+                    self.on_number_placed()
+                self.drawing = False
+
         super().mousePressEvent(event)
+
+    def add_number_item(self, pos):
+        """Filled circle in the pen color with the current number, centered on pos."""
+        radius = 15
+        circle = QGraphicsEllipseItem(-radius, -radius, radius * 2, radius * 2)
+        circle.setBrush(self.pen_color)
+        circle.setPen(QPen(Qt.NoPen))
+        label = QGraphicsSimpleTextItem(str(self.number), circle)
+        label.setFont(QFont("Pretendard", 14, QFont.Bold))
+        # Keep the digit readable on light pen colors
+        label.setBrush(Qt.black if qGray(self.pen_color.rgb()) > 160 else Qt.white)
+        br = label.boundingRect()
+        label.setPos(-br.width() / 2, -br.height() / 2)
+        circle.setPos(pos)
+        self.addItem(circle)
+        return circle
 
     def mouseMoveEvent(self, event):
         if self.drawing:
@@ -223,6 +249,7 @@ class EditorWindow(QWidget):
         self.btn_rect = QPushButton("□ 사각형")
         self.btn_arrow = QPushButton("↗ 화살표")
         self.btn_text = QPushButton("T 텍스트")
+        self.btn_number = QPushButton("① 번호")
         self.btn_color = QPushButton("◑ 색상")
         
         self.btn_undo = QPushButton("↶ 취소")
@@ -231,7 +258,8 @@ class EditorWindow(QWidget):
         self.btn_save = QPushButton("⤓ 저장")
         
         # Make tools checkable for exclusive selection
-        for btn in [self.btn_crop, self.btn_pen, self.btn_hl, self.btn_rect, self.btn_arrow, self.btn_text]:
+        self.tool_buttons = [self.btn_crop, self.btn_pen, self.btn_hl, self.btn_rect, self.btn_arrow, self.btn_text, self.btn_number]
+        for btn in self.tool_buttons:
             btn.setCheckable(True)
             toolbar_layout.addWidget(btn)
         self.btn_pen.setChecked(True)
@@ -253,6 +281,8 @@ class EditorWindow(QWidget):
         self.btn_rect.clicked.connect(lambda: self.set_mode("rect", self.btn_rect))
         self.btn_arrow.clicked.connect(lambda: self.set_mode("arrow", self.btn_arrow))
         self.btn_text.clicked.connect(lambda: self.set_mode("text", self.btn_text))
+        self.scene.on_number_placed = self._advance_number
+        self.btn_number.clicked.connect(self.choose_number)
         
         self.btn_color.clicked.connect(self.choose_color)
         self.btn_undo.clicked.connect(self.scene.undo)
@@ -289,12 +319,12 @@ class EditorWindow(QWidget):
         # Set cursor based on mode
         if mode == "text":
             self.view.setCursor(Qt.IBeamCursor)
-        elif mode in ["pen", "highlighter", "crop"]:
+        elif mode in ["pen", "highlighter", "crop", "number"]:
             self.view.setCursor(Qt.CrossCursor)
         else:
             self.view.setCursor(Qt.ArrowCursor)
             
-        for btn in [self.btn_crop, self.btn_pen, self.btn_hl, self.btn_rect, self.btn_arrow, self.btn_text]:
+        for btn in self.tool_buttons:
             if btn != active_btn:
                 btn.setChecked(False)
 
@@ -323,25 +353,78 @@ class EditorWindow(QWidget):
         self.scene.setSceneRect(QRectF(pixmap.rect()))
         self.view.setSceneRect(QRectF(pixmap.rect()))
 
+    def choose_number(self):
+        """Enter number mode and let the user pick which number (1-5) to stamp next."""
+        self.set_mode("number", self.btn_number)
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: rgb(35, 35, 35);
+                color: white;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 4px;
+            }
+            QMenu::item {
+                padding: 6px 20px;
+                font-family: "Pretendard", "Malgun Gothic";
+                font-size: 16px;
+            }
+            QMenu::item:selected {
+                background-color: rgba(0, 180, 240, 0.3);
+            }
+        """)
+        for n, label in enumerate(NUMBER_LABELS, start=1):
+            menu.addAction(f"{label}  {n}번").triggered.connect(lambda _=False, n=n: self._set_number(n))
+        # Open upward — the toolbar sits at the bottom of the window
+        top_left = self.btn_number.mapToGlobal(self.btn_number.rect().topLeft())
+        top_left.setY(top_left.y() - menu.sizeHint().height())
+        menu.exec(top_left)
+
+    def _set_number(self, n):
+        self.scene.number = n
+        self.btn_number.setText(f"{NUMBER_LABELS[n - 1]} 번호")
+
+    def _advance_number(self):
+        # After stamping, move on to the next number so 1→2→3 needs no reselecting
+        self._set_number(min(self.scene.number + 1, len(NUMBER_LABELS)))
+
     def choose_color(self):
+        if self._color_dialog is not None:
+            self._color_dialog.raise_()
+            self._color_dialog.activateWindow()
+            return
         dialog = QColorDialog(self.scene.pen_color, self)
         dialog.setOption(QColorDialog.ColorDialogOption.NoButtons)
         dialog.currentColorChanged.connect(self._on_color_changed)
-        # Close as soon as the user finishes picking (mouse release after a change),
-        # so a swatch click closes at once and a gradient drag closes on release.
+        dialog.finished.connect(self._on_color_dialog_finished)
+        # Non-modal, so a click on the editor reaches eventFilter and can close it.
+        # Closes as soon as the user finishes picking (mouse release after a change),
+        # or on any click outside the dialog.
         self._color_dialog = dialog
         self._color_picked = False
         QApplication.instance().installEventFilter(self)
-        try:
-            dialog.exec()
-        finally:
-            QApplication.instance().removeEventFilter(self)
-            self._color_dialog = None
+        dialog.show()
+
+    def _on_color_dialog_finished(self):
+        QApplication.instance().removeEventFilter(self)
+        self._color_dialog.deleteLater()
+        self._color_dialog = None
+
+    def _close_color_dialog_if_picked(self):
+        if self._color_dialog is not None and self._color_picked:
+            self._color_dialog.accept()
 
     def eventFilter(self, obj, event):
-        if (self._color_dialog is not None and self._color_picked
-                and event.type() == QEvent.MouseButtonRelease):
-            self._color_dialog.accept()
+        dialog = self._color_dialog
+        if dialog is not None:
+            if event.type() == QEvent.MouseButtonRelease:
+                # A swatch click changes the color while this release is being
+                # handled, so check only after the event has been delivered.
+                QTimer.singleShot(0, self._close_color_dialog_if_picked)
+            elif (event.type() == QEvent.MouseButtonPress and isinstance(obj, QWidget)
+                    and obj.window() is not dialog):
+                dialog.accept()
+                return True
         return super().eventFilter(obj, event)
 
     def _on_color_changed(self, color):
