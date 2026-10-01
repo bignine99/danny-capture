@@ -1,6 +1,5 @@
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QTabWidget, QWidget, QFormLayout, QCheckBox, QComboBox, QSpinBox, QPushButton, QHBoxLayout, QLineEdit, QFileDialog
 from utils.config import ConfigManager
-from utils.config import ConfigManager
 
 def apply_mica(hwnd):
     import ctypes

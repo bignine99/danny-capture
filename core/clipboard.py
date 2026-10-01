@@ -1,7 +1,6 @@
-from PySide6.QtGui import QImage, QClipboard
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 from PIL import Image
-import io
 
 def copy_image_to_clipboard(image: Image.Image):
     """

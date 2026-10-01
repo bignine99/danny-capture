@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QApplication, QInputDialog, QSystemTrayIcon
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QApplication, QInputDialog
 from PySide6.QtCore import Qt, QPoint, QRect, QTimer, QPropertyAnimation, QEasingCurve, QSize
 from core.capture import CaptureEngine
 from ui.overlay import CaptureOverlay
@@ -144,10 +144,10 @@ class MainToolbar(QWidget):
     def start_simple_capture(self):
         self.hide()
         # Delay slightly to ensure window is hidden
-        QTimer.singleShot(100, self._show_overlay_region)
+        QTimer.singleShot(100, lambda: self._show_overlay("region"))
 
-    def _show_overlay_region(self):
-        self.overlay = CaptureOverlay(mode="region")
+    def _show_overlay(self, mode, **kwargs):
+        self.overlay = CaptureOverlay(mode=mode, **kwargs)
         self.overlay.on_capture = self._on_region_captured
         self.overlay.show()
 
@@ -183,12 +183,7 @@ class MainToolbar(QWidget):
 
     def start_full_capture(self):
         self.hide()
-        QTimer.singleShot(100, self._show_overlay_screen)
-
-    def _show_overlay_screen(self):
-        self.overlay = CaptureOverlay(mode="screen")
-        self.overlay.on_capture = self._on_region_captured
-        self.overlay.show()
+        QTimer.singleShot(100, lambda: self._show_overlay("screen"))
 
     def start_size_capture(self):
         self.hide()
@@ -199,24 +194,12 @@ class MainToolbar(QWidget):
         if not ok2:
             return
             
-        QTimer.singleShot(100, lambda: self._show_overlay_fixed_size(width, height))
-        
-    def _show_overlay_fixed_size(self, w, h):
-        self.overlay = CaptureOverlay(mode="fixed_size", fixed_size=QSize(w, h))
-        self.overlay.on_capture = self._on_region_captured
-        self.overlay.show()
+        QTimer.singleShot(100, lambda: self._show_overlay("fixed_size", fixed_size=QSize(width, height)))
 
     def start_window_capture(self):
         self.hide()
-        QTimer.singleShot(100, self._show_overlay_window)
+        QTimer.singleShot(100, lambda: self._show_overlay("window"))
 
-    def _show_overlay_window(self):
-        self.overlay = CaptureOverlay(mode="window")
-        self.overlay.on_capture = self._on_region_captured
-        self.overlay.show()
-        
-
-        
     def apply_styles(self):
         self.setStyleSheet("""
             #container {

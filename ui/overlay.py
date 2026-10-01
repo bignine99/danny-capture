@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QWidget, QApplication
-from PySide6.QtGui import QPainter, QColor, QPen, QCursor, QPainterPath, QPixmap, QFont
-from PySide6.QtCore import Qt, QRect, QPoint, QSize
+from PySide6.QtGui import QPainter, QColor, QPen, QPainterPath, QPixmap, QFont
+from PySide6.QtCore import Qt, QRect, QPoint
 
 class CaptureOverlay(QWidget):
     def __init__(self, mode="region", fixed_size=None):

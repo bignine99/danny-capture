@@ -1,7 +1,5 @@
 import mss
 from PIL import Image
-from PySide6.QtGui import QScreen
-from PySide6.QtWidgets import QApplication
 
 class CaptureEngine:
     def __init__(self):
@@ -63,7 +61,6 @@ class CaptureEngine:
         If hwnd is None, captures the foreground window.
         """
         import win32gui
-        import win32con
         import ctypes
         
         if hwnd is None:

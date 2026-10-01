@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from winotify import Notification, audio
 

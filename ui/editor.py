@@ -1,10 +1,9 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QGraphicsView, QGraphicsScene, QApplication, QColorDialog, QInputDialog, QGraphicsTextItem, QGraphicsPathItem, QGraphicsLineItem, QFrame, QLabel
-from PySide6.QtGui import QPixmap, QImage, QPainter, QPen, QColor, QPainterPath, QPolygonF, QFont, QCursor
-from PySide6.QtCore import Qt, QPointF, QRectF, QLineF, QSize, QEvent
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QGraphicsView, QGraphicsScene, QApplication, QColorDialog, QInputDialog, QGraphicsTextItem, QGraphicsPathItem, QFrame, QLabel
+from PySide6.QtGui import QPixmap, QImage, QPainter, QPen, QColor, QPainterPath, QFont
+from PySide6.QtCore import Qt, QPointF, QRectF, QLineF, QEvent
 from PIL import Image
 from PIL.ImageQt import ImageQt
 import math
-import sys
 
 def apply_mica(hwnd):
     import ctypes

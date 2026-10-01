@@ -1,4 +1,3 @@
-import sys
 import ctypes
 from ctypes import wintypes
 from PySide6.QtCore import QObject, Signal, QAbstractNativeEventFilter, QCoreApplication
@@ -7,6 +6,7 @@ from utils.config import ConfigManager
 user32 = ctypes.windll.user32
 
 WM_HOTKEY = 0x0312
+MOD_NOREPEAT = 0x4000
 
 VK_MAP = {
     'a': 0x41, 'b': 0x42, 'c': 0x43, 'd': 0x44, 'e': 0x45, 'f': 0x46,
@@ -66,24 +66,8 @@ class HotkeyManager(QObject):
         self.start()
 
     def _on_activate_simple(self):
-        import sys
         print("HOTKEY: Simple capture triggered", flush=True)
         self.sig_simple_capture.emit()
-
-    def _on_activate_full(self):
-        self.sig_full_capture.emit()
-
-    def _on_activate_window(self):
-        self.sig_window_capture.emit()
-
-    def _on_activate_region(self):
-        self.sig_region_capture.emit()
-
-    def _on_activate_size(self):
-        self.sig_size_capture.emit()
-
-    def _on_activate_repeat(self):
-        self.sig_repeat_capture.emit()
         
     def _parse_hotkey(self, hk_str):
         """Returns (mod, vk, valid). An unknown token (typo) invalidates the whole
@@ -126,11 +110,11 @@ class HotkeyManager(QObject):
         # detected as duplicates, not silently collapsed by dict keys.
         entries = [
             ("간편 캡쳐", hotkeys.get('simple_capture', '<ctrl>+<alt>+d'), self._on_activate_simple),
-            ("전체화면 캡쳐", hotkeys.get('fullscreen_capture', '<ctrl>+<alt>+f'), self._on_activate_full),
-            ("창 캡쳐", hotkeys.get('window_capture', '<ctrl>+<alt>+w'), self._on_activate_window),
-            ("단위영역 캡쳐", hotkeys.get('region_capture', '<ctrl>+<alt>+u'), self._on_activate_region),
-            ("크기지정 캡쳐", hotkeys.get('size_capture', '<ctrl>+<alt>+s'), self._on_activate_size),
-            ("마지막 영역 재캡처", hotkeys.get('repeat_capture', '<ctrl>+<alt>+r'), self._on_activate_repeat),
+            ("전체화면 캡쳐", hotkeys.get('fullscreen_capture', '<ctrl>+<alt>+f'), self.sig_full_capture.emit),
+            ("창 캡쳐", hotkeys.get('window_capture', '<ctrl>+<alt>+w'), self.sig_window_capture.emit),
+            ("단위영역 캡쳐", hotkeys.get('region_capture', '<ctrl>+<alt>+u'), self.sig_region_capture.emit),
+            ("크기지정 캡쳐", hotkeys.get('size_capture', '<ctrl>+<alt>+s'), self.sig_size_capture.emit),
+            ("마지막 영역 재캡처", hotkeys.get('repeat_capture', '<ctrl>+<alt>+r'), self.sig_repeat_capture.emit),
         ]
 
         self.failed_hotkeys = []
@@ -147,8 +131,8 @@ class HotkeyManager(QObject):
                 seen[(mod, vk)] = label
                 hk_id = self._next_id
                 self._next_id += 1
-                # 0x4000 is MOD_NOREPEAT, prevents repeated trigger when holding down
-                success = user32.RegisterHotKey(None, hk_id, mod | 0x4000, vk)
+                # MOD_NOREPEAT prevents repeated trigger when holding down
+                success = user32.RegisterHotKey(None, hk_id, mod | MOD_NOREPEAT, vk)
                 if not success:
                     # try without MOD_NOREPEAT for compatibility
                     success = user32.RegisterHotKey(None, hk_id, mod, vk)
@@ -170,5 +154,5 @@ class HotkeyManager(QObject):
                 user32.UnregisterHotKey(None, hk_id)
             self._registered_ids.clear()
             self._callbacks.clear()
-        except:
+        except Exception:
             pass
