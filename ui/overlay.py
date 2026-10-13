@@ -32,7 +32,14 @@ class CaptureOverlay(QWidget):
         # Showing it steals focus and closes any open menu/dropdown, so the
         # final image must be cropped from this frozen shot.
         from core.capture import CaptureEngine
-        self.frozen_image, self.frozen_origin = CaptureEngine().freeze_screen()
+        engine = CaptureEngine()
+        try:
+            self.frozen_image, self.frozen_origin = engine.freeze_screen()
+        finally:
+            # mss has no __del__: without close() every capture (cancelled ones
+            # too) leaves 3 GDI handles and a virtual-screen bitmap (~24MB) in
+            # paged pool until the process exits.
+            engine.sct.close()
 
         # The frozen shot doubles as the overlay background and the loupe
         # source, so the screen *looks* frozen too: transient popups stay
