@@ -398,10 +398,11 @@
 * `python -m PyInstaller --clean --noconfirm DannyCapture_Single.spec` → `dist/DannyCapture_Single.exe` 68,456,887B, 버전 리소스 1.2.2.0 · `ISCC.exe installer.iss` → `Output/DannyCapture_Setup.exe` 70,392,904B.
 * `/VERYSILENT /NORESTART` 로 설치 → 설치본 exe 1.2.2.0, 레지스트리 1.2.2 / 20261013 확인. 트레이에서 실행 중.
 * 시크릿 게이트 4종 전부 0건 → 커밋 `c74bb56` *fix: v1.2.2 — 캡처마다 mss 핸들 미해제로 paged pool 이 24MB 씩 쌓이던 누수 수정* → `origin/main` 푸시 → GitHub 릴리스 **v1.2.2**(Latest, 설치본 첨부).
+* 이 이력 문서(§13)도 시크릿 게이트 4종 0건 확인 후 커밋 `d0bc804`(14:57)로 푸시 — `origin/main` = 로컬 일치. 이후 이 절의 docrun 항목 정정(위 시험 수)은 아직 커밋 전.
 
 ### 13.4 함께 바로잡은 것 (이 프로그램 밖)
 * **자동 실행 레지스트리** `HKCU\...\Run\DannyCapture` 값이 깨진 문자열(`"  + $env:LOCALAPPDATA +  \DannyCapture\...`, 외부에서 손으로 쓴 PowerShell 식이 그대로 들어간 것)이라 부팅 시 자동 시작이 안 되고 있었다. 설치 exe 의 따옴표 묶은 전체 경로로 교체하고, 앱 설정 `system.startup` 도 켬으로 맞췄다(꺼진 채로 환경설정을 저장하면 앱이 레지스트리 값을 지운다). 앱의 `utils/config.py` 레지스트리 코드 자체는 정상.
-* **docrun 재발 방지**(`260801\260919_parcer II`, git 저장소 아님): 실행기 `run_docrun.py`·`run.ps1` 을 `--jobs 2` 로 고정. `src/docrun/memlimit.py` 신설 — Windows Job Object `ProcessMemoryLimit` 로 변환 프로세스당 커밋 상한(`--mem-limit-gb`, 기본 8). 넘는 할당은 MemoryError 가 되고 `convert_one` 이 그 파일만 「실패 · 메모리 상한 초과」로 적는다. `tests/test_memlimit.py` 4건 추가, 전체 461 passed. 옛 코드로 돌던 실행(`--jobs 1`, 9.3GB 도달)을 끊고 새 코드로 재시작 — 워커 2개가 Job Object 안에서 도는 것을 `IsProcessInJob` 으로 확인.
+* **docrun 재발 방지**(`260801\260919_parcer II`, git 저장소 아님): 실행기 `run_docrun.py`·`run.ps1` 을 `--jobs 2` 로 고정. `src/docrun/memlimit.py` 신설 — Windows Job Object `ProcessMemoryLimit` 로 변환 프로세스당 커밋 상한(`--mem-limit-gb`, 기본 8). 넘는 할당은 MemoryError 가 되고 `convert_one` 이 그 파일만 「실패 · 메모리 상한 초과」로 적는다. 이후 일꾼 교체·풀 복구·쓰기 단계 보호가 더해져 최종 시험 9건·전체 466 passed 가 됐다(재실행 결과·상세·오류 기록은 `260919_parcer II` 이력 문서의 2026-10-13 절). 옛 코드로 돌던 실행(`--jobs 1`, 9.3GB 도달)을 끊고 새 코드로 재시작 — 워커 2개가 Job Object 안에서 도는 것을 `IsProcessInJob` 으로 확인.
 
 ### 13.5 작업 중 발생한 오류
 
