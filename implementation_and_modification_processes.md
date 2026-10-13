@@ -376,3 +376,62 @@
 | 6. 2026-08-24 §8-3 개선 후보(모자이크/블러·핀 고정·OCR·저장 폴더 열기·fit-to-window) | 미착수 |
 | 7. [HUMAN CHECK] 다중 모니터 배율 125%/150% 환경 검증 (2026-08-24 §6) | 미검증 |
 | 8. [HUMAN CHECK] 설치본에서 드롭다운 동결 캡처·자르기·재캡처 손 검증 | 사용자 「잘 작동한다」 확인, 항목별 확인은 미기록 |
+
+## 13. PC 멈춤 조사 · v1.2.2 누수 수정 · 배포 (2026-10-13)
+
+사용자 보고 — 「2일 전 업데이트 후 PC 가 3번 멈췄다(키 입력 전부 불능). 이 프로그램 때문인 것 같다.」
+
+### 13.1 조사 결과 — 전제가 틀렸고, 주범은 다른 작업이었다
+* **설치본은 v1.2.0(2026-10-01 설치)이었다.** 언인스톨 레지스트리 `DisplayVersion 1.2.0 / InstallDate 20261001`, exe 날짜 10-01, 버전 리소스 없음. 10-12 에 빌드·릴리스한 v1.2.1 설치본은 이 PC 에서 실행된 적이 없었다. 「2일 전 업데이트」에 해당하는 Windows·드라이버 업데이트도 없었다(Defender 정의 갱신뿐).
+* **이벤트 로그의 하드 프리즈는 14일간 1건** — 10-12 19:09:25 SCM 「Insufficient system resources」(WER 서비스 종료) → 19:09 nProtect 종료 → 19:10 Windows Update·ChatGPT·KakaoWork 연쇄 크래시 → 19:10~19:11 **Desktop Window Manager 3회 종료**(종료 코드 `0xC00001AD` = 메모리 리소스 부족) → 19:20:42 전원 강제 종료(Kernel-Power 41). 10-10·10-11 종료는 시작 메뉴를 통한 정상 종료였다(키가 안 먹었다면 불가능).
+* **진짜 원인 — `260801\260924_image_pdf_to_json_II` 의 docrun 작업.** 커맨드 기록상 10-12 18:09 `--jobs 8` 로 시작, 실행 로그가 19:15 에 끊김(xlrd 가 어떤 `.xls` 에서 `formula/tFunc unknown FuncID:257` 를 수천 줄 뿜던 중). 10-13 13:00 에 `--jobs 3` 로 재현 — 워커 3개가 각 19~20GB, 합계 60GB, 커밋 여유 383MB 까지 떨어진 것을 실측하고 강제 종료했다(작업 관리자의 「Python 7.3GB」는 상주 메모리만 보여 작게 보였다).
+* 이 프로그램은 키보드 후킹·입력 가로채기 코드가 없다(`RegisterHotKey` 만 사용). 단독으로 키 입력을 막을 수 없다.
+
+### 13.2 그래도 실존하던 결함 — 캡처마다 mss 핸들 누수 (v1.2.2)
+* **오류현상**: 캡처(취소·ESC 포함)를 할수록 커널 paged pool 이 쌓이고 프로세스 종료 전까지 풀리지 않음. 실측(가상화면 5760×1082) — 오버레이 30회 생성: GDI 객체 **+90**, paged pool **+708MB**; 60회: paged pool +1.4GB, 커밋 +2GB.
+* **오류원인분석**: `ui/overlay.py` 가 화면 동결 때마다 `CaptureEngine()` 을 새로 만드는데, 그 안의 `mss.mss()` 인스턴스(10.1.0, `__del__` 없음)를 어디서도 `close()` 하지 않아 `GetDC`·메모리 DC·가상화면 크기 비트맵이 캡처 1회당 그대로 남았다. v1.2.0(bf08a44, 2026-08-24 동결 캡처 도입)부터 있던 코드다.
+* **해결및개선방법**: 동결 직후 `engine.sct.close()` (`try/finally`). 회귀 테스트 `scratch/test_overlay_leak.py`(오버레이 30회 → GDI 증가 ≤3 · paged pool 증가 <100MB) — 수정 전 FAIL(+90/+708MB) → 수정 후 PASS(+0/−6MB). paged pool 은 `typeperf "\Memory\Pool Paged Bytes"` 로 잰다(시스템 전체 RAM 사용량은 잡음이 커서 판정에 못 쓴다).
+* 10-12 멈춤과의 관계: 증상(풀 고갈 → DWM 종료)은 같은 종류이나 주범은 docrun 이었다. 이 누수는 기여 요인으로만 본다.
+
+### 13.3 빌드·설치·배포
+* 버전 1.2.2 (`installer.iss`·`version_info.txt`), README 변경 이력 추가.
+* `python -m PyInstaller --clean --noconfirm DannyCapture_Single.spec` → `dist/DannyCapture_Single.exe` 68,456,887B, 버전 리소스 1.2.2.0 · `ISCC.exe installer.iss` → `Output/DannyCapture_Setup.exe` 70,392,904B.
+* `/VERYSILENT /NORESTART` 로 설치 → 설치본 exe 1.2.2.0, 레지스트리 1.2.2 / 20261013 확인. 트레이에서 실행 중.
+* 시크릿 게이트 4종 전부 0건 → 커밋 `c74bb56` *fix: v1.2.2 — 캡처마다 mss 핸들 미해제로 paged pool 이 24MB 씩 쌓이던 누수 수정* → `origin/main` 푸시 → GitHub 릴리스 **v1.2.2**(Latest, 설치본 첨부).
+
+### 13.4 함께 바로잡은 것 (이 프로그램 밖)
+* **자동 실행 레지스트리** `HKCU\...\Run\DannyCapture` 값이 깨진 문자열(`"  + $env:LOCALAPPDATA +  \DannyCapture\...`, 외부에서 손으로 쓴 PowerShell 식이 그대로 들어간 것)이라 부팅 시 자동 시작이 안 되고 있었다. 설치 exe 의 따옴표 묶은 전체 경로로 교체하고, 앱 설정 `system.startup` 도 켬으로 맞췄다(꺼진 채로 환경설정을 저장하면 앱이 레지스트리 값을 지운다). 앱의 `utils/config.py` 레지스트리 코드 자체는 정상.
+* **docrun 재발 방지**(`260801\260919_parcer II`, git 저장소 아님): 실행기 `run_docrun.py`·`run.ps1` 을 `--jobs 2` 로 고정. `src/docrun/memlimit.py` 신설 — Windows Job Object `ProcessMemoryLimit` 로 변환 프로세스당 커밋 상한(`--mem-limit-gb`, 기본 8). 넘는 할당은 MemoryError 가 되고 `convert_one` 이 그 파일만 「실패 · 메모리 상한 초과」로 적는다. `tests/test_memlimit.py` 4건 추가, 전체 461 passed. 옛 코드로 돌던 실행(`--jobs 1`, 9.3GB 도달)을 끊고 새 코드로 재시작 — 워커 2개가 Job Object 안에서 도는 것을 `IsProcessInJob` 으로 확인.
+
+### 13.5 작업 중 발생한 오류
+
+#### 설정 파일을 PowerShell 로 쓰자 앱이 기본값으로 덮어씀
+* **오류현상**: 자동 실행 플래그를 켜려고 `config.json` 을 `ConvertTo-Json | Set-Content -Encoding utf8` 로 고쳐 쓴 뒤 앱을 재시작하자 저장 폴더·플래그가 전부 기본값(`Pictures\DannyCapture`, startup False)으로 바뀜.
+* **오류원인분석**: Windows PowerShell 5.1 의 `-Encoding utf8` 은 **BOM 을 붙인다.** 앱은 `open(..., encoding='utf-8')` + `json.load` 라 BOM 에서 실패 → 「Failed to load config」→ 기본값으로 저장.
+* **해결및개선방법**: 조사 초반에 출력해 둔 원본 값으로 Python(`encoding='utf-8'`, BOM 없음)이 다시 썼다. **앱이 읽는 파일은 앱과 같은 언어·같은 인코딩으로 쓴다. PowerShell 5.1 로 UTF-8 파일을 만들지 않는다.**
+
+#### Bash 히어독 안의 Windows 경로 백슬래시가 풀림
+* **오류현상**: 히어독으로 넘긴 Python 코드의 `"C:\Users\..."` 가 `unicodeescape` SyntaxError.
+* **해결및개선방법**: 스크립트를 파일로 쓰고 raw 문자열(`r"..."`)로 적는다.
+
+#### `typeperf` 출력 파싱 — 한국어 로캘
+* **오류현상**: 마지막 줄을 수치로 읽다가 「명령을 완료했습니다」 안내문에서 `ValueError`, 그리고 cp949 깨짐.
+* **해결및개선방법**: `encoding="cp949"` 로 읽고, 따옴표로 시작하면서 카운터 이름이 아닌 CSV 행만 골라 수치를 취한다.
+
+#### ctypes 로 Job Object 를 만들 때 핸들이 잘림
+* **오류현상**: `CreateJobObjectW` 는 성공하는데 `SetInformationJobObject`/`AssignProcessToJobObject` 가 실패해 `cap_current_process` 가 False.
+* **오류원인분석**: `restype` 을 두지 않으면 ctypes 가 64비트 HANDLE 을 `c_int` 로 잘라 돌려준다.
+* **해결및개선방법**: `restype = c_void_p`·`argtypes` 를 전부 명시. 시험 — 256MB 상한 걸고 1GB 할당 → MemoryError(크래시 아님), 2GB 상한 아래 64MB 할당 → 정상.
+
+#### 작업 관리자 수치로 메모리 주범을 못 찾음
+* **오류현상**: 프로세스 탭의 「Python 7.3GB」만 보면 60GB 고갈이 설명되지 않음.
+* **해결및개선방법**: `PrivateMemorySize64`(커밋)로 다시 셌더니 워커 3개가 각 19~20GB. **커밋 고갈을 볼 때는 작업 집합이 아니라 Private Bytes 로 센다.** Resource-Exhaustion-Detector(2004)가 울리지 않았어도 커밋 고갈일 수 있다.
+
+### 13.6 TODO 갱신
+
+| 항목 | 상태 |
+|---|---|
+| 1. v1.2.1(2026-10-01 번호 도구·색상 창, 2026-10-12 버전 리소스·UPX 해제·릴리스) 작업이 이 문서에 미기록 | 미기록 — 커밋 `523eedf`·`b6d0809`·README 변경 이력 참조 |
+| 2. docrun 워커당 20GB 를 만드는 `.xls` 원인 파일 특정과 xlrd 쪽 근본 수정 | 미착수 — 상한으로 PC 는 보호됨, 그 파일은 「실패」행으로 남는다 |
+| 3. 같은 멈춤이 재발하면 이 프로그램은 원인에서 제외하고 nProtect·그래픽 드라이버를 본다 | 관찰 중 |
+| 4. §12.4 의 항목 1~8 | 변동 없음 |
